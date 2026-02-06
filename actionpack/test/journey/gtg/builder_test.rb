@@ -8,27 +8,26 @@ module ActionDispatch
       class TestBuilder < ActiveSupport::TestCase
         def test_following_states_multi
           table = tt ["a|a"]
-          buf = [0, nil]
-          assert_equal 1, table.move(buf, 0, 2, "a", "a", 0, true) / 2
+          states = GTG::StateQueue.new
+          table.move(states, "a", "a", 0, true)
+          assert_equal 1, states.count
         end
 
         def test_following_states_multi_regexp
           table = tt [":a|b"]
-          buf = [0, nil]
-          assert_equal 1, table.move(buf, 0, 2, "fooo", "fooo", 0, true) / 2
+          states = GTG::StateQueue.new
+          table.move(states, "fooo", "fooo", 0, true)
+          assert_equal 1, states.count
 
-          buf = [0, nil]
-          assert_equal 2, table.move(buf, 0, 2, "b", "b", 0, true) / 2
+          states = GTG::StateQueue.new
+          table.move(states, "b", "b", 0, true)
+          assert_equal 2, states.count
         end
 
         def test_multi_path
           table = tt ["/:a/d", "/b/c"]
 
-          buf = Array.new(32)
-          buf[0] = 0
-          buf[1] = nil
-          roff = 0
-          rlen = 2
+          states = GTG::StateQueue.new
 
           [
             [1, "/"],
@@ -36,10 +35,8 @@ module ActionDispatch
             [2, "/"],
             [1, "c"],
           ].each { |(exp, sym)|
-            wlen = table.move(buf, roff, rlen, sym, sym, 0, sym != "/")
-            assert_equal exp, wlen / 2
-            roff += rlen
-            rlen = wlen
+            table.move(states, sym, sym, 0, sym != "/")
+            assert_equal exp, states.count
           }
         end
 
