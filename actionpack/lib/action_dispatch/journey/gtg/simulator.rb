@@ -20,8 +20,6 @@ module ActionDispatch
         STATIC_TOKENS["?".ord] = "?"
         STATIC_TOKENS.freeze
 
-        INITIAL_STATE = [0, nil].freeze
-
         attr_reader :tt
 
         def initialize(transition_table)
@@ -29,7 +27,11 @@ module ActionDispatch
         end
 
         def memos(string)
-          state = INITIAL_STATE
+          buf = Array.new(16)
+          buf[0] = 0
+          buf[1] = nil
+          roff = 0
+          rlen = 2
 
           pos = 0
           eos = string.bytesize
@@ -39,23 +41,27 @@ module ActionDispatch
             pos += 1
 
             if (token = STATIC_TOKENS[string.getbyte(start_index)])
-              state = tt.move(state, string, token, start_index, false)
+              wlen = tt.move(buf, roff, rlen, string, token, start_index, false)
             else
               while pos < eos && STATIC_TOKENS[string.getbyte(pos)].nil?
                 pos += 1
               end
 
               token = string.byteslice(start_index, pos - start_index)
-              state = tt.move(state, string, token, start_index, true)
+              wlen = tt.move(buf, roff, rlen, string, token, start_index, true)
             end
+
+            # Advance read head to the written region
+            roff += rlen
+            rlen = wlen
           end
 
           acceptance_states = []
-          states_count = state.size
-          i = 0
-          while i < states_count
-            if state[i + 1].nil?
-              s = state[i]
+          rend = roff + rlen
+          i = roff
+          while i < rend
+            if buf[i + 1].nil?
+              s = buf[i]
               if tt.accepting?(s)
                 acceptance_states.concat(tt.memo(s))
               end

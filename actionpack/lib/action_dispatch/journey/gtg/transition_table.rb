@@ -46,27 +46,36 @@ module ActionDispatch
           Array(t)
         end
 
-        def move(t, full_string, token, start_index, token_matches_default)
-          return [] if t.empty?
+        # Advances the state machine by one token. Reads current states from
+        # buf[roff, roff+rlen) and writes next states immediately after at
+        # buf[roff+rlen, ...). Returns the number of elements written.
+        def move(buf, roff, rlen, full_string, token, start_index, token_matches_default)
+          return 0 if rlen == 0
 
-          next_states = []
+          rend = roff + rlen
+          wpos = rend
 
-          transitions_count = t.size
-          i = 0
-          while i < transitions_count
-            s = t[i]
-            previous_start = t[i + 1]
+          i = roff
+          while i < rend
+            s = buf[i]
+            previous_start = buf[i + 1]
             if previous_start.nil?
               # In the simple case of a "default" param regex do this fast-path and add all
               # next states.
               if token_matches_default && std_state = @stdparam_states[s]
-                next_states << std_state << nil
+                buf[wpos] = std_state
+                buf[wpos + 1] = nil
+                wpos += 2
               end
 
               # When we have a literal string, we can just pull the next state
               if states = @string_states[s]
                 state = states[token]
-                next_states << state << nil unless state.nil?
+                unless state.nil?
+                  buf[wpos] = state
+                  buf[wpos + 1] = nil
+                  wpos += 2
+                end
               end
             end
 
@@ -86,18 +95,24 @@ module ActionDispatch
 
               states.each { |re, v|
                 # if we match, we can try moving past this
-                next_states << v << nil if !v.nil? && re.match?(curr_slice)
+                if !v.nil? && re.match?(curr_slice)
+                  buf[wpos] = v
+                  buf[wpos + 1] = nil
+                  wpos += 2
+                end
               }
 
               # and regardless, we must continue accepting tokens and retrying this regexp. we
               # need to remember where we started as well so we can take bigger slices.
-              next_states << s << slice_start
+              buf[wpos] = s
+              buf[wpos + 1] = slice_start
+              wpos += 2
             end
 
             i += 2
           end
 
-          next_states
+          wpos - rend
         end
 
         def as_json(options = nil)

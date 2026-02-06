@@ -8,27 +8,38 @@ module ActionDispatch
       class TestBuilder < ActiveSupport::TestCase
         def test_following_states_multi
           table = tt ["a|a"]
-          assert_equal 1, table.move([0, nil], "a", "a", 0, true).each_slice(2).count
+          buf = [0, nil]
+          assert_equal 1, table.move(buf, 0, 2, "a", "a", 0, true) / 2
         end
 
         def test_following_states_multi_regexp
           table = tt [":a|b"]
-          assert_equal 1, table.move([0, nil], "fooo", "fooo", 0, true).each_slice(2).count
-          assert_equal 2, table.move([0, nil], "b", "b", 0, true).each_slice(2).count
+          buf = [0, nil]
+          assert_equal 1, table.move(buf, 0, 2, "fooo", "fooo", 0, true) / 2
+
+          buf = [0, nil]
+          assert_equal 2, table.move(buf, 0, 2, "b", "b", 0, true) / 2
         end
 
         def test_multi_path
           table = tt ["/:a/d", "/b/c"]
+
+          buf = Array.new(32)
+          buf[0] = 0
+          buf[1] = nil
+          roff = 0
+          rlen = 2
 
           [
             [1, "/"],
             [2, "b"],
             [2, "/"],
             [1, "c"],
-          ].inject([0, nil]) { |state, (exp, sym)|
-            new = table.move(state, sym, sym, 0, sym != "/")
-            assert_equal exp, new.each_slice(2).count
-            new
+          ].each { |(exp, sym)|
+            wlen = table.move(buf, roff, rlen, sym, sym, 0, sym != "/")
+            assert_equal exp, wlen / 2
+            roff += rlen
+            rlen = wlen
           }
         end
 
